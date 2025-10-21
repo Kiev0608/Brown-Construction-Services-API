@@ -2,44 +2,63 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-
-// Import Firebase db from src/config
-import { db } from "./src/config/firebase.config.js";
+import admin from "firebase-admin";
+import path from "path";
+import { fileURLToPath } from "url";
 
 dotenv.config();
 
-const app = express();
-const PORT = process.env.PORT || 3000;
+// Firebase init
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const serviceAccount = JSON.parse(
+  await import(`file://${path.resolve(__dirname, "./src/browns-construction-service-firebase.json")}`, {
+    assert: { type: "json" }
+  }).then((m) => JSON.stringify(m.default))
+);
 
-// Middleware
-app.use(cors());
-app.use(express.json());
-
-// Test route
-app.get("/", (req, res) => {
-  res.send("✅ API is running!");
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
 });
 
-// Example maintenance endpoint
-app.post("/maintenance", async (req, res) => {
+import { db } from "./src/config/firebase.config.js";
+
+// Auth middleware
+import { authenticate, authorizeRoles } from "./src/middleware/auth.js";
+
+// Routes
+import maintenanceRoutes from "./src/routes/maintenance.routes.js";
+import authRoutes from "./src/routes/auth.routes.js";
+
+const app = express();
+const PORT = process.env.PORT || 5000;
+
+app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Test endpoint
+app.get("/", (req, res) => res.send("✅ API running!"));
+
+// Auth routes (login/registration)
+app.use("/auth", authRoutes);
+
+// Maintenance routes (role-protected)
+app.use(
+  "/maintenance",
+  authenticate(), // attach req.user
+  maintenanceRoutes // inside, we will check roles for create/update
+);
+
+// Test Firebase connection
+app.get("/test-firebase", async (req, res) => {
   try {
-    const { clientName, description, status } = req.body;
-
-    const docRef = await db.collection("maintenance").add({
-      clientName,
-      description,
-      status: status || "Pending",
-      createdAt: new Date()
-    });
-
-    res.status(201).json({ message: "Maintenance request created", id: docRef.id });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Failed to create maintenance request" });
+    const testDoc = await db.collection("test").add({ message: "Firebase is working!" });
+    res.json({ success: true, id: testDoc.id });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`✅ API running on http://localhost:${PORT}`);
-});
+app.listen(PORT, () => console.log(`✅ API running on http://localhost:${PORT}`));

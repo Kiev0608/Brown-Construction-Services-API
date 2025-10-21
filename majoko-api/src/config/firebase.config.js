@@ -1,13 +1,16 @@
 // src/config/firebase.config.js
-import admin from "firebase-admin";
-import { createRequire } from "module";
-const require = createRequire(import.meta.url);
-const serviceAccount = require("../browns-construction-service-firebase.json");
+const admin = require("firebase-admin");
+const path = require("path");
 
-// Initialize Firebase admin
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
-});
+const serviceAccountPath = path.resolve(__dirname, "serviceAccountKey.json");
+const serviceAccount = require(serviceAccountPath);
 
-// Export Firestore database instance
-export const db = admin.firestore();
+if (!admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+  });
+}
+
+const db = admin.firestore();
+
+module.exports = { admin, db };

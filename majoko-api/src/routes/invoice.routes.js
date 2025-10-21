@@ -1,16 +1,18 @@
-const express = require('express');
+import express from "express";
+import { createQuotation, getQuotations, convertQuotationToInvoice, createInvoice, getInvoices, getInvoiceById, recordPayment, sendReminder } from "../controllers/invoice.controller.js";
+
 const router = express.Router();
-const controller = require('../controllers/invoice.controller');
-const { authorize } = require('../middleware/auth');
 
-router.post('/quotation', authorize(['admin','project_manager']), controller.createQuotation);
-router.get('/quotation', authorize(['admin','project_manager']), controller.getQuotations);
-router.post('/convert/:quotationId', authorize(['admin','project_manager']), controller.convertQuotationToInvoice);
+// Quotation
+router.post("/quotation", createQuotation);
+router.get("/quotation", getQuotations);
+router.post("/quotation/:quotationId/convert", convertQuotationToInvoice);
 
-router.post('/', authorize(['admin','project_manager']), controller.createInvoice); // create manually
-router.get('/', authorize(), controller.getInvoices);
-router.get('/:id', authorize(), controller.getInvoiceById);
-router.post('/:id/pay', authorize(), controller.recordPayment); // simulate payment callback
-router.post('/:id/remind', authorize(['admin','project_manager']), controller.sendReminder);
+// Invoice
+router.post("/", createInvoice);
+router.get("/", getInvoices);
+router.get("/:id", getInvoiceById);
+router.post("/:id/pay", recordPayment);
+router.post("/:id/reminder", sendReminder);
 
-module.exports = router;
+export default router;

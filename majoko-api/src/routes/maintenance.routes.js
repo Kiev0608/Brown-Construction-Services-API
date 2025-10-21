@@ -1,12 +1,27 @@
 const express = require('express');
 const router = express.Router();
-const controller = require('../controllers/maintenance.controller');
-const { authorize } = require('../middleware/auth');
+const { body } = require('express-validator');
 
-router.post('/report', authorize(), controller.createRequest);            // client
-router.get('/', authorize(['admin','project_manager']), controller.getAll);
-router.get('/:id', authorize(), controller.getOne);
-router.put('/:id/assign', authorize(['admin','project_manager']), controller.assignContractor);
-router.put('/:id/status', authorize(['admin','project_manager','contractor']), controller.updateStatus);
+const { authenticate } = require('../middleware/auth');
+const {
+  createRequest,
+  getRequests,
+  updateStatus
+} = require('../controllers/maintenance.controller');
+
+// ✅ Create maintenance request (any logged-in user)
+router.post(
+  '/',
+  authenticate(),
+  body('title').notEmpty(),
+  body('description').notEmpty(),
+  createRequest
+);
+
+// ✅ Get all requests (admin view)
+router.get('/', authenticate(), getRequests);
+
+// ✅ Update status / assign contractor (admin only)
+router.patch('/:id', authenticate(), updateStatus);
 
 module.exports = router;

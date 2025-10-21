@@ -1,73 +1,56 @@
-const { Maintenance, User } = require('../models');
-const { sendEmail } = require('../utils/emailService');
-const { sendSms } = require('../utils/smsService');
+const { db } = require('../config/firebase.config');
 
-exports.createRequest = async (req, res) => {
+const createRequest = async (req, res) => {
+  const { title, description, images } = req.body;
+  const userId = req.user.id; // From JWT middleware
+
   try {
-    const { title, description, imageUrl } = req.body;
-    const clientId = req.user.id;
-    const reqRec = await Maintenance.create({ clientId, title, description, imageUrl });
-    // Notify admins/project managers (for demo we'll just log or use emailService if configured)
-    // sendEmail(...) or sendSms(...)
-    res.status(201).json(reqRec);
+    const docRef = await db.collection('maintenanceRequests').add({
+      title,
+      description,
+      images: images || [],
+      status: 'Pending',
+      assignedTo: null,
+      createdBy: userId,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    res.json({ success: true, id: docRef.id });
   } catch (err) {
-    res.status(400).json({ message: 'Error creating maintenance request', error: err.message });
+    console.error(err);
+    res.status(500).json({ success: false, error: err.message });
   }
 };
 
-exports.getAll = async (req, res) => {
+const getRequests = async (req, res) => {
   try {
-    const list = await Maintenance.findAll({ include: [{ model: User, as: 'client', attributes: ['id','name','email'] }, { model: User, as: 'contractor', attributes: ['id','name','email'] }] });
-    res.json(list);
+    const snapshot = await db.collection('maintenanceRequests').get();
+    const requests = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    res.json({ success: true, requests });
   } catch (err) {
-    res.status(500).json({ message: 'Error fetching requests', error: err.message });
+    console.error(err);
+    res.status(500).json({ success: false, error: err.message });
   }
 };
 
-exports.getOne = async (req, res) => {
+const updateStatus = async (req, res) => {
+  const { id } = req.params;
+  const { status, assignedTo } = req.body;
+
   try {
-    const rec = await Maintenance.findByPk(req.params.id);
-    if (!rec) return res.status(404).json({ message: 'Not found' });
-    res.json(rec);
+    const docRef = db.collection('maintenanceRequests').doc(id);
+    await docRef.update({
+      status,
+      assignedTo: assignedTo || null,
+      updatedAt: new Date(),
+    });
+
+    res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ message: 'Error', error: err.message });
+    console.error(err);
+    res.status(500).json({ success: false, error: err.message });
   }
 };
 
-exports.assignContractor = async (req, res) => {
-  try {
-    const { contractorId } = req.body;
-    const rec = await Maintenance.findByPk(req.params.id);
-    if (!rec) return res.status(404).json({ message: 'Not found' });
-    rec.contractorId = contractorId;
-    rec.status = 'In Progress';
-    await rec.save();
-    // notify contractor
-    const contractor = await User.findByPk(contractorId);
-    if (contractor) {
-      await sendEmail(contractor.email, 'New Task Assigned', `You have been assigned to maintenance #${rec.id}`);
-      await sendSms(contractor.phone || '', `Assigned task #${rec.id}`); // phone optional
-    }
-    res.json(rec);
-  } catch (err) {
-    res.status(500).json({ message: 'Error assigning contractor', error: err.message });
-  }
-};
-
-exports.updateStatus = async (req, res) => {
-  try {
-    const { status } = req.body;
-    const rec = await Maintenance.findByPk(req.params.id);
-    if (!rec) return res.status(404).json({ message: 'Not found' });
-    rec.status = status;
-    await rec.save();
-    // notify client/admin about status change
-    const client = await User.findByPk(rec.clientId);
-    if (client) {
-      await sendEmail(client.email, `Maintenance #${rec.id} status updated`, `Status is now ${status}`);
-    }
-    res.json(rec);
-  } catch (err) {
-    res.status(500).json({ message: 'Error updating status', error: err.message });
-  }
-};
+module.exports = { createRequest, getRequests, updateStatus };
