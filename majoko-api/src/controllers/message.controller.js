@@ -1,49 +1,65 @@
-const { Message, User } = require('../models');
+import { db } from "../config/firebase.config.js";
 
-exports.sendMessage = async (req, res) => {
+// Create a message
+export const createMessage = async (req, res) => {
   try {
-    const senderId = req.user.id;
-    const { receiverId, content } = req.body;
-    const msg = await Message.create({ senderId, receiverId, content });
-    // Optionally notify receiver (email/SMS)
-    const receiver = await User.findByPk(receiverId);
-    if (receiver) {
-      const { sendEmail } = require('../utils/emailService');
-      await sendEmail(receiver.email, 'New Message', `New message from ${req.user.email}: ${content}`);
+    const { senderId, receiverId, projectId, subject, body } = req.body;
+
+    if (!senderId || !receiverId || !body) {
+      return res.status(400).json({ success: false, error: "senderId, receiverId, and body are required" });
     }
-    res.status(201).json(msg);
-  } catch (err) {
-    res.status(400).json({ message: 'Error sending message', error: err.message });
-  }
-};
 
-exports.getThreadWithUser = async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const otherId = parseInt(req.params.userId, 10);
-    const msgs = await Message.findAll({
-      where: {
-        // either sender=userId & receiver=otherId or opposite
-        // Sequelize OR:
-        $or: [
-          { senderId: userId, receiverId: otherId },
-          { senderId: otherId, receiverId: userId }
-        ]
-      },
-      order: [['createdAt', 'ASC']]
+    const newMessage = {
+      senderId,
+      receiverId,
+      projectId: projectId || null,
+      subject: subject || "",
+      body,
+      isRead: false,
+      createdAt: new Date().toISOString(),
+    };
+
+    const docRef = await db.collection("messages").add(newMessage);
+
+    res.status(201).json({
+      success: true,
+      message: "Message sent successfully",
+      id: docRef.id,
+      data: newMessage,
     });
-    res.json(msgs);
-  } catch (err) {
-    res.status(500).json({ message: 'Error', error: err.message });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
   }
 };
 
-exports.getUserMessages = async (req, res) => {
+// Get messages for a user
+export const getUserMessages = async (req, res) => {
   try {
-    const userId = parseInt(req.params.userId, 10);
-    const msgs = await Message.findAll({ where: { receiverId: userId }, order: [['createdAt','DESC']]});
-    res.json(msgs);
-  } catch (err) {
-    res.status(500).json({ message: 'Error', error: err.message });
+    const { userId } = req.params;
+
+    const snapshot = await db
+      .collection("messages")
+      .where("receiverId", "==", userId)
+      .orderBy("createdAt", "desc")
+      .get();
+
+    const messages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    res.status(200).json({ success: true, data: messages });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// Mark a message as read
+export const markMessageRead = async (req, res) => {
+  try {
+    const { messageId } = req.params;
+
+    await db.collection("messages").doc(messageId).update({ isRead: true });
+
+    res.status(200).json({ success: true, message: "Message marked as read" });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
   }
 };
