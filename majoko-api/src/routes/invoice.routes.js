@@ -1,18 +1,24 @@
 import express from "express";
-import { createQuotation, getQuotations, convertQuotationToInvoice, createInvoice, getInvoices, getInvoiceById, recordPayment, sendReminder } from "../controllers/invoice.controller.js";
+import {
+  createInvoice,
+  getAllInvoices,
+  getInvoiceById,
+  updateInvoiceStatus,
+  deleteInvoice,
+  createPaypalOrder,
+  capturePaypalPayment,
+} from "../controllers/invoice.controller.js";
 
 const router = express.Router();
 
-// Quotation
-router.post("/quotation", createQuotation);
-router.get("/quotation", getQuotations);
-router.post("/quotation/:quotationId/convert", convertQuotationToInvoice);
-
-// Invoice
-router.post("/", createInvoice);
-router.get("/", getInvoices);
+router.post("/create", createInvoice);
+router.get("/all", getAllInvoices);
 router.get("/:id", getInvoiceById);
-router.post("/:id/pay", recordPayment);
-router.post("/:id/reminder", sendReminder);
+router.put("/update/:id", updateInvoiceStatus);
+router.delete("/delete/:id", deleteInvoice);
+
+// PayPal
+router.post("/paypal/create-order", createPaypalOrder);
+router.post("/paypal/capture-payment", capturePaypalPayment);
 
 export default router;

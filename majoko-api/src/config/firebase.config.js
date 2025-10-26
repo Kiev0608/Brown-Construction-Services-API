@@ -1,16 +1,19 @@
 // src/config/firebase.config.js
-const admin = require("firebase-admin");
-const path = require("path");
+import { initializeApp, cert, getApps, getApp } from "firebase-admin/app";
+import { getFirestore } from "firebase-admin/firestore";
+import dotenv from "dotenv";
 
-const serviceAccountPath = path.resolve(__dirname, "serviceAccountKey.json");
-const serviceAccount = require(serviceAccountPath);
+dotenv.config();
 
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-  });
-}
+const serviceAccount = {
+  type: "service_account",
+  project_id: process.env.FIREBASE_PROJECT_ID,
+  private_key: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+  client_email: process.env.FIREBASE_CLIENT_EMAIL,
+};
 
-const db = admin.firestore();
+// ✅ Only initialize if there’s no app yet
+const app = getApps().length ? getApp() : initializeApp({ credential: cert(serviceAccount) });
 
-module.exports = { admin, db };
+// ✅ Firestore
+export const db = getFirestore(app);

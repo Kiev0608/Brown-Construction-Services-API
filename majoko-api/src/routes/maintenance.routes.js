@@ -1,27 +1,23 @@
-const express = require('express');
-const router = express.Router();
-const { body } = require('express-validator');
-
-const { authenticate } = require('../middleware/auth');
-const {
+import express from "express";
+import {
   createRequest,
-  getRequests,
-  updateStatus
-} = require('../controllers/maintenance.controller');
+  assignContractor,
+  updateRequestStatus,
+  getAllRequests,
+} from "../controllers/maintenance.controller.js";
 
-// ✅ Create maintenance request (any logged-in user)
-router.post(
-  '/',
-  authenticate(),
-  body('title').notEmpty(),
-  body('description').notEmpty(),
-  createRequest
-);
+const router = express.Router();
 
-// ✅ Get all requests (admin view)
-router.get('/', authenticate(), getRequests);
+// 1️⃣ Client: Create maintenance request
+router.post("/create", createRequest);
 
-// ✅ Update status / assign contractor (admin only)
-router.patch('/:id', authenticate(), updateStatus);
+// 2️⃣ Admin: Assign contractor
+router.patch("/assign/:id", assignContractor);
 
-module.exports = router;
+// 3️⃣ Contractor/Admin: Update status
+router.patch("/update/:id", updateRequestStatus);
+
+// 4️⃣ View all requests
+router.get("/all", getAllRequests);
+
+export default router;

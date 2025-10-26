@@ -1,56 +1,139 @@
-const { db } = require('../config/firebase.config');
+import { db } from "../config/firebase.config.js";
 
-const createRequest = async (req, res) => {
-  const { title, description, images } = req.body;
-  const userId = req.user.id; // From JWT middleware
-
+/**
+ * 1️⃣ Client: Create a new maintenance request
+ * Body: { clientName, description, imageUrl }
+ */
+export const createRequest = async (req, res) => {
   try {
-    const docRef = await db.collection('maintenanceRequests').add({
-      title,
+    const { clientName, description, imageUrl } = req.body;
+
+    if (!clientName || !description) {
+      return res.status(400).json({
+        success: false,
+        error: "Client name and description are required.",
+      });
+    }
+
+    const newRequest = {
+      clientName,
       description,
-      images: images || [],
-      status: 'Pending',
-      assignedTo: null,
-      createdBy: userId,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      imageUrl: imageUrl || null,
+      assignedContractor: null, // not yet assigned
+      status: "Pending", // default
+      createdAt: new Date().toISOString(),
+    };
+
+    const docRef = await db.collection("maintenanceRequests").add(newRequest);
+
+    res.status(201).json({
+      success: true,
+      message: "Maintenance request created successfully.",
+      id: docRef.id,
+      data: newRequest,
     });
-
-    res.json({ success: true, id: docRef.id });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, error: err.message });
+  } catch (error) {
+    console.error("Error creating maintenance request:", error);
+    res.status(500).json({ success: false, error: error.message });
   }
 };
 
-const getRequests = async (req, res) => {
+/**
+ * 2️⃣ Admin: Assign a contractor to a request
+ * Params: id
+ * Body: { assignedContractor }
+ */
+export const assignContractor = async (req, res) => {
   try {
-    const snapshot = await db.collection('maintenanceRequests').get();
-    const requests = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    res.json({ success: true, requests });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, error: err.message });
-  }
-};
+    const { id } = req.params;
+    const { assignedContractor } = req.body;
 
-const updateStatus = async (req, res) => {
-  const { id } = req.params;
-  const { status, assignedTo } = req.body;
+    if (!assignedContractor) {
+      return res.status(400).json({
+        success: false,
+        error: "Assigned contractor name is required.",
+      });
+    }
 
-  try {
-    const docRef = db.collection('maintenanceRequests').doc(id);
-    await docRef.update({
-      status,
-      assignedTo: assignedTo || null,
-      updatedAt: new Date(),
+    const docRef = db.collection("maintenanceRequests").doc(id);
+    const docSnap = await docRef.get();
+
+    if (!docSnap.exists) {
+      return res.status(404).json({ success: false, error: "Request not found." });
+    }
+
+    await docRef.update({ assignedContractor, status: "In Progress" });
+
+    res.status(200).json({
+      success: true,
+      message: "Contractor assigned successfully.",
+      id,
+      assignedContractor,
+      newStatus: "In Progress",
     });
-
-    res.json({ success: true });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, error: err.message });
+  } catch (error) {
+    console.error("Error assigning contractor:", error);
+    res.status(500).json({ success: false, error: error.message });
   }
 };
 
-module.exports = { createRequest, getRequests, updateStatus };
+/**
+ * 3️⃣ Contractor/Admin: Update the task status
+ * Params: id
+ * Body: { status } — ("Pending", "In Progress", "Completed")
+ */
+export const updateRequestStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    const validStatuses = ["Pending", "In Progress", "Completed"];
+    if (!status || !validStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid status. Must be Pending, In Progress, or Completed.",
+      });
+    }
+
+    const docRef = db.collection("maintenanceRequests").doc(id);
+    const docSnap = await docRef.get();
+
+    if (!docSnap.exists) {
+      return res.status(404).json({ success: false, error: "Request not found." });
+    }
+
+    await docRef.update({ status });
+
+    res.status(200).json({
+      success: true,
+      message: "Maintenance request status updated successfully.",
+      id,
+      newStatus: status,
+    });
+  } catch (error) {
+    console.error("Error updating maintenance status:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+/**
+ * 4️⃣ View all requests (for any dashboard)
+ */
+export const getAllRequests = async (req, res) => {
+  try {
+    const snapshot = await db
+      .collection("maintenanceRequests")
+      .orderBy("createdAt", "desc")
+      .get();
+
+    const requests = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    res.status(200).json({ success: true, data: requests });
+  } catch (error) {
+    console.error("Error fetching maintenance requests:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
