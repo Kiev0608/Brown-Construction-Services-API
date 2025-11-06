@@ -1,3 +1,4 @@
+import { ScimEmailAddress } from "twilio/lib/rest/previewIam/versionless/organization/user.js";
 import { db } from "../config/firebase.config.js";
 
 /**
@@ -6,17 +7,18 @@ import { db } from "../config/firebase.config.js";
  */
 export const createRequest = async (req, res) => {
   try {
-    const { clientName, description, imageUrl } = req.body;
+    const { clientName, email, description, imageUrl } = req.body;
 
-    if (!clientName || !description) {
+    if (!clientName || !email || !description) {
       return res.status(400).json({
         success: false,
-        error: "Client name and description are required.",
+        error: "Client name, email and description are required.",
       });
     }
 
     const newRequest = {
       clientName,
+      email,
       description,
       imageUrl: imageUrl || null,
       assignedContractor: null, // not yet assigned
@@ -38,11 +40,7 @@ export const createRequest = async (req, res) => {
   }
 };
 
-/**
- * 2️⃣ Admin: Assign a contractor to a request
- * Params: id
- * Body: { assignedContractor }
- */
+// Admin: Assign a contractor to a request
 export const assignContractor = async (req, res) => {
   try {
     const { id } = req.params;
